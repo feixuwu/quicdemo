@@ -16,12 +16,47 @@ server_handle::~server_handle() {
 
 }
 
+void server_handle::readAvailable(quic::StreamId id) noexcept {
+    LOG(INFO)<<"readAvailable stream:"<<id<<std::endl;
+    auto res = sock_->read(id, 0);
+    if(res.hasError() ) {
+        LOG(ERROR) << "read stream:"<<id<<" Got error=" << toString(res.error());
+        sock_->setReadCallback(id, nullptr);
+        return;
+    }
+
+    if (input_.find(id) == input_.end()) {
+      input_.emplace(id, std::make_pair(quic::BufQueue(), false));
+    }
+
+    quic::Buf data = std::move(res.value().first);
+    bool eof = res.value().second;
+    auto dataLen = (data ? data->computeChainDataLength() : 0);
+    LOG(INFO) << "Got len=" << dataLen << " eof=" << uint32_t(eof)
+              << " total=" << input_[id].first.chainLength() + dataLen
+              << " data="
+              << ((data) ? data->clone()->moveToFbString().toStdString()
+                         : std::string());
+    input_[id].first.append(std::move(data));
+    input_[id].second = eof;
+    if (eof) {
+      echo(id, input_[id]);
+      LOG(INFO) << "uninstalling read callback";
+      sock_->setReadCallback(id, nullptr);
+    }
+}
+
+void server_handle::readError(quic::StreamId id, quic::QuicError error) noexcept {
+    LOG(INFO)<<"readError stream:"<<id<<" error:"<<error<<std::endl;
+}
+
 void server_handle::onConnectionSetupError(quic::QuicError code) noexcept {
     LOG(ERROR)<<"onConnectionSetupError:"<<code;
 }
 
 void server_handle::onNewBidirectionalStream(quic::StreamId id) noexcept {
     LOG(INFO)<<"new bidrection stream:"<<id<<std::endl;
+    sock_->setReadCallback(id, this);
 }
 
 void server_handle::onNewUnidirectionalStream(quic::StreamId id) noexcept {
@@ -42,6 +77,23 @@ void server_handle::onConnectionError(quic::QuicError code) noexcept {
 
 void server_handle::set_quicsock(std::shared_ptr<quic::QuicSocket> sock) {
     sock_ = sock;
+}
+
+void server_handle::echo(quic::StreamId id, StreamData& data) {
+    if (!data.second) {
+      // only echo when eof is present
+      return;
+    }
+    auto echoed_data = folly::IOBuf::copyBuffer("echo ");
+    echoed_data->prependChain(data.first.move());
+    auto res = sock_->writeChain(id, std::move(echoed_data), true, nullptr);
+    if (res.hasError()) {
+      LOG(ERROR) << "write error=" << toString(res.error());
+    } else {
+      // echo is done, clear EOF
+      data.second = false;
+      input_.erase(id);
+    }
 }
 
 

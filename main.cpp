@@ -28,6 +28,7 @@ DEFINE_string(
 
 
 int main(int argc, char** argv) {
+    FLAGS_alsologtostderr = 1;
     gflags::ParseCommandLineFlags(&argc, &argv, false);
     folly::Init init(&argc, &argv);
     fizz::CryptoUtils::init();

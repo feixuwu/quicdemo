@@ -101,6 +101,21 @@ void client::onConnectionEnd() noexcept {
 
 void client::readAvailable(quic::StreamId id) noexcept {
     LOG(INFO) << "Client readAvailable" << " on stream=" << id;
+
+    auto res = quic_client_->read(id, 0);
+    if(res.hasError() ) {
+        LOG(ERROR) << "read stream:"<<id<<" Got error=" << toString(res.error());
+        quic_client_->setReadCallback(id, nullptr);
+        return;
+    }
+
+    quic::Buf data = std::move(res.value().first);
+    bool eof = res.value().second;
+
+    LOG(INFO)<<"client read:"<<data->clone()->moveToFbString().toStdString();
+    /*if(eof) {
+      quic_client_->setReadCallback(id, nullptr);
+    }*/
 }
 
 void client::readError(quic::StreamId id, quic::QuicError error) noexcept {

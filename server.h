@@ -13,9 +13,11 @@
 
 
 class server_handle:public quic::QuicSocket::ConnectionSetupCallback,
-                    public quic::QuicSocket::ConnectionCallback
+                    public quic::QuicSocket::ConnectionCallback,
+                    public quic::QuicSocket::ReadCallback
 {
 public:
+    using StreamData = std::pair<quic::BufQueue, bool>;
 
     server_handle(folly::EventBase* evb);
     ~server_handle() override;
@@ -28,7 +30,11 @@ public:
     void onConnectionEnd() noexcept override;
     void onConnectionError(quic::QuicError code) noexcept override;
 
+    void readAvailable(quic::StreamId id) noexcept override;
+    void readError(quic::StreamId id, quic::QuicError error) noexcept override;
+
     void set_quicsock(std::shared_ptr<quic::QuicSocket> sock);
+    void echo(quic::StreamId id, StreamData& data);
 
     folly::EventBase* get_eventbase() {
         return event_base_;
@@ -38,6 +44,8 @@ private:
 
     folly::EventBase* event_base_;
     std::shared_ptr<quic::QuicSocket> sock_;
+    using PerStreamData = std::map<quic::StreamId, StreamData>;
+    PerStreamData input_;
 };
 
 
