@@ -113,9 +113,6 @@ void client::readAvailable(quic::StreamId id) noexcept {
     bool eof = res.value().second;
 
     LOG(INFO)<<"client read:"<<data->clone()->moveToFbString().toStdString();
-    /*if(eof) {
-      quic_client_->setReadCallback(id, nullptr);
-    }*/
 }
 
 void client::readError(quic::StreamId id, quic::QuicError error) noexcept {
