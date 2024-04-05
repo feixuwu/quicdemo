@@ -11,7 +11,7 @@
 #include <quic/server/QuicServerTransport.h>
 #include <quic/server/QuicSharedUDPSocketFactory.h>
 
-
+class transport_factory;
 class server_handle:public quic::QuicSocket::ConnectionSetupCallback,
                     public quic::QuicSocket::ConnectionCallback,
                     public quic::QuicSocket::ReadCallback
@@ -34,6 +34,7 @@ public:
     void readError(quic::StreamId id, quic::QuicError error) noexcept override;
 
     void set_quicsock(std::shared_ptr<quic::QuicSocket> sock);
+    void set_factory(transport_factory* factory) {factory_ = factory;}
     void echo(quic::StreamId id, StreamData& data);
 
     folly::EventBase* get_eventbase() {
@@ -46,6 +47,7 @@ private:
     std::shared_ptr<quic::QuicSocket> sock_;
     using PerStreamData = std::map<quic::StreamId, StreamData>;
     PerStreamData input_;
+    transport_factory* factory_;
 };
 
 
@@ -54,6 +56,8 @@ public:
 
     transport_factory();
     ~transport_factory() override;
+
+    void remove_handle(server_handle* handle);
 
     virtual quic::QuicServerTransport::Ptr make(
       folly::EventBase* evb,

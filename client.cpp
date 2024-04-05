@@ -92,7 +92,7 @@ void client::onNewUnidirectionalStream(quic::StreamId id) noexcept {
 }
 
 void client::onStopSending(quic::StreamId id, quic::ApplicationErrorCode error) noexcept {
-
+  LOG(INFO) << "Client onStopSending" << " on stream=" << id<<" err:"<<error;
 }
 
 void client::onConnectionEnd() noexcept {

@@ -9,11 +9,11 @@
 
 
 server_handle::server_handle(folly::EventBase* evb):event_base_(evb) {
-
+    
 }
 
 server_handle::~server_handle() {
-
+    LOG(INFO)<<"deconstruct server_handle";
 }
 
 void server_handle::readAvailable(quic::StreamId id) noexcept {
@@ -69,6 +69,8 @@ void server_handle::onStopSending(quic::StreamId id, quic::ApplicationErrorCode 
 
 void server_handle::onConnectionEnd() noexcept {
     LOG(INFO)<<"onConnectionEnd"<<std::endl;
+
+    factory_->remove_handle(this);
 }
 
 void server_handle::onConnectionError(quic::QuicError code) noexcept {
@@ -116,6 +118,19 @@ transport_factory::~transport_factory() {
     });
 }
 
+void transport_factory::remove_handle(server_handle* handle) {
+    echoHandlers_.withWLock([handle](auto& echoHandlers) {
+        //echoHandlers.push_back(std::move(echoHandler));
+        auto it = std::find_if(echoHandlers.begin(), echoHandlers.end(), [handle](std::unique_ptr<server_handle>& first) {
+            return first.get() == handle;
+        });
+
+        if(it != echoHandlers.end()) {
+            echoHandlers.erase(it);
+        }
+    });
+}
+
 quic::QuicServerTransport::Ptr transport_factory::make(
       folly::EventBase* evb,
       std::unique_ptr<quic::FollyAsyncUDPSocketAlias> socket,
@@ -126,6 +141,7 @@ quic::QuicServerTransport::Ptr transport_factory::make(
     auto echoHandler = std::make_unique<server_handle>(evb);
     auto transport = quic::QuicServerTransport::make(evb, std::move(socket), echoHandler.get(), echoHandler.get(), ctx);
     echoHandler->set_quicsock(transport);
+    echoHandler->set_factory(this);
     echoHandlers_.withWLock([&](auto& echoHandlers) {
       echoHandlers.push_back(std::move(echoHandler));
     });
